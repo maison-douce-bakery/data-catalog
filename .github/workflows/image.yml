@@ -1,0 +1,38 @@
+name: image
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Builds the image, which fails if a pinned plugin cannot be pulled.
+  build:
+    name: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: build image
+        run: docker build -t marmot:ci .
+
+  # Only main pushes an image; a PR's build is already covered by the build job above.
+  image:
+    needs: build
+    if: github.event_name != 'pull_request'
+    uses: maison-douce-bakery/platform-ci-workflows/.github/workflows/docker-build-push.yml@7beee702a116f27e5db8855c6082cf35cb2fb949 # docker-build-push/v1.1.0
+    with:
+      ecr_repository: mdb/marmot
+      role_arn: ${{ vars.AWS_CI_PUSH_ROLE_ARN }}
+      aws_region: ${{ vars.AWS_REGION }}
+    secrets:
+      aws_access_key_id: ${{ secrets.AWS_CI_PUSH_ACCESS_KEY_ID }}
+      aws_secret_access_key: ${{ secrets.AWS_CI_PUSH_SECRET_ACCESS_KEY }}
